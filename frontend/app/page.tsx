@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 import { BackgroundRemover } from "@/components/BackgroundRemover";
 
 export default function Home() {
@@ -5,21 +7,23 @@ export default function Home() {
     <main>
       <header className="site-header shell">
         <a className="brand" href="#top" aria-label="FON — на главную">
-          <span className="brand-mark" aria-hidden="true">F</span>
-          <span>FON</span>
+          <span className="brand-logo" aria-hidden="true">
+            <Image src="/birdtech-logo.png" alt="" width={38} height={38} priority />
+          </span>
+          <span className="brand-wordmark"><strong>FON</strong><small>by BirdTech</small></span>
         </a>
-        <div className="local-badge">
+        <div className="privacy-badge">
           <span className="status-dot" aria-hidden="true" />
-          Работает локально
+          Полная анонимность
         </div>
       </header>
 
       <section className="hero shell" id="top">
-        <div className="eyebrow"><SparklesIcon /> На базе BiRefNet</div>
+        <div className="eyebrow"><SparklesIcon /> Умное удаление фона</div>
         <h1>Фон исчезает.<br /><span>Главное остаётся.</span></h1>
         <p className="hero-copy">
-          Загрузите фотографию и получите аккуратный PNG с прозрачным фоном. Без
-          регистрации, облака и лишних шагов.
+          Загрузите фотографию и получите аккуратный PNG с прозрачным фоном.
+          Без регистрации и хранения ваших изображений.
         </p>
       </section>
 
@@ -28,20 +32,23 @@ export default function Home() {
       </section>
 
       <section className="features shell" aria-label="Преимущества">
-        <Feature icon={<LockIcon />} title="Ваши фото остаются у вас">
-          Обработка выполняется локально на вашем компьютере.
+        <Feature icon={<LockIcon />} title="Ничего не сохраняем">
+          Файл используется только для обработки и не попадает в постоянное хранилище.
         </Feature>
-        <Feature icon={<ImageIcon />} title="Чистый прозрачный PNG">
-          Готово для дизайна, каталога или нового фона.
+        <Feature icon={<ImageIcon />} title="Точный прозрачный PNG">
+          Модель аккуратно отделяет главный объект — готово для дизайна и каталога.
         </Feature>
-        <Feature icon={<BoltIcon />} title="Один понятный шаг">
-          JPG, PNG и WebP размером до 15 МБ.
+        <Feature icon={<BoltIcon />} title="Без лишних шагов">
+          Загрузите JPG, PNG или WebP до 15 МБ и скачайте готовый результат.
         </Feature>
       </section>
 
       <footer className="site-footer shell">
-        <span>FON</span>
-        <span>Локальный инструмент удаления фона</span>
+        <div className="footer-brand">
+          <Image src="/birdtech-logo.png" alt="" width={26} height={26} />
+          <span>FON</span>
+        </div>
+        <span>Сделано by BirdTech</span>
       </footer>
     </main>
   );

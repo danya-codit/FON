@@ -141,6 +141,7 @@ export function BackgroundRemover() {
       {!selected ? (
         <div
           className={`dropzone ${isDragging ? "is-dragging" : ""}`}
+          data-testid="upload-dropzone"
           role="button"
           tabIndex={0}
           aria-label="Выбрать изображение"
@@ -196,13 +197,13 @@ function PreviewView({ selected, isProcessing, onProcess, onReset }: {
 }) {
   return (
     <div className="preview-layout">
-      <div className="preview-image-wrap" style={{ aspectRatio: `${selected.width} / ${selected.height}` }}>
-        <img src={selected.url} alt="Предпросмотр выбранной фотографии" />
+      <div className="preview-image-wrap" data-testid="image-preview">
+        <img src={selected.url} alt="Предпросмотр выбранной фотографии" draggable={false} />
         {isProcessing && (
           <div className="processing-overlay" aria-live="polite">
             <span className="spinner" aria-hidden="true" />
-            <strong>BiRefNet отделяет объект от фона</strong>
-            <span>Первый запуск может занять немного больше времени</span>
+            <strong>Модель отделяет объект от фона</strong>
+            <span>Обработка может занять немного времени</span>
           </div>
         )}
       </div>
@@ -214,7 +215,7 @@ function PreviewView({ selected, isProcessing, onProcess, onReset }: {
           <p className="file-meta">{formatFileSize(selected.file.size)} · {selected.width} × {selected.height}</p>
         </div>
         <div className="action-stack">
-          <button className="button button-primary" type="button" onClick={onProcess} disabled={isProcessing}>
+          <button className="button button-primary" data-testid="remove-background" type="button" onClick={onProcess} disabled={isProcessing}>
             {isProcessing ? <><span className="button-spinner" /> Удаляем фон…</> : <><WandIcon /> Удалить фон</>}
           </button>
           <button className="button button-ghost" type="button" onClick={onReset} disabled={isProcessing}>Выбрать другое фото</button>
@@ -236,7 +237,7 @@ function ResultView({ original, resultUrl, onDownload, onReset }: {
         <div><span className="success-pill"><CheckIcon /> Готово</span><h2>Фон удалён</h2></div>
         <p>Перетащите ползунок, чтобы сравнить результат.</p>
       </div>
-      <ComparisonSlider originalUrl={original.url} resultUrl={resultUrl} width={original.width} height={original.height} />
+      <ComparisonSlider originalUrl={original.url} resultUrl={resultUrl} />
       <div className="result-actions">
         <button className="button button-secondary" type="button" onClick={onReset}><RefreshIcon /> Другое фото</button>
         <button className="button button-primary" type="button" onClick={onDownload}><DownloadIcon /> Скачать PNG</button>
@@ -245,14 +246,12 @@ function ResultView({ original, resultUrl, onDownload, onReset }: {
   );
 }
 
-function ComparisonSlider({ originalUrl, resultUrl, width, height }: {
+function ComparisonSlider({ originalUrl, resultUrl }: {
   originalUrl: string;
   resultUrl: string;
-  width: number;
-  height: number;
 }) {
   const [split, setSplit] = useState(50);
-  const style = { "--split": `${split}%`, aspectRatio: `${width} / ${height}` } as CSSProperties;
+  const style = { "--split": `${split}%` } as CSSProperties;
 
   return (
     <div className="comparison" style={style}>

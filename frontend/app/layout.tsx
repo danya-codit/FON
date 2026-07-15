@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FON — удаление фона локально",
-  description: "Удаление фона с фотографий с помощью BiRefNet прямо на вашем компьютере.",
+  title: "FON — удаление фона с фотографий",
+  description: "Аккуратное удаление фона с фотографий — быстро, анонимно и без хранения файлов.",
   icons: { icon: "/favicon.svg" },
 };
 
