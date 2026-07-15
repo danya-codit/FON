@@ -1,0 +1,50 @@
+# Python
+backend/.venv/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# BiRefNet and Hugging Face caches
+backend/models/
+.cache/
+.hf-cache/
+huggingface/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment variables, secrets and local settings
+.env
+.env.*
+!.env.example
+!.env.local.example
+*.pem
+*.key
+
+# User images and generated results
+uploads/
+input/
+inputs/
+output/
+outputs/
+processed/
+user-data/
+backend/uploads/
+frontend/public/uploads/
+
+# IDE and operating system
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
