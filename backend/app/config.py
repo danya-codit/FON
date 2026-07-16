@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+PROJECT_DIR = BACKEND_DIR.parent
 
 
 def _csv_env(name: str, default: str) -> tuple[str, ...]:
@@ -16,7 +17,7 @@ class Settings:
     app_name: str = "FON API"
     model_id: str = os.getenv("BIREFNET_MODEL_ID", "ZhengPeng7/BiRefNet")
     model_dir: Path = Path(
-        os.getenv("BIREFNET_MODEL_DIR", str(BACKEND_DIR / "models" / "BiRefNet"))
+        os.getenv("BIREFNET_MODEL_DIR", str(PROJECT_DIR / "models" / "BiRefNet"))
     ).resolve()
     max_upload_size_mb: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "15"))
     max_image_pixels: int = int(os.getenv("MAX_IMAGE_PIXELS", "40000000"))

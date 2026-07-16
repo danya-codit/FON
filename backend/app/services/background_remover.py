@@ -25,7 +25,9 @@ class BiRefNetBackgroundRemover:
 
     @property
     def is_installed(self) -> bool:
-        return (self.model_dir / "config.json").is_file()
+        return (self.model_dir / "config.json").is_file() and any(
+            self.model_dir.glob("*.safetensors")
+        )
 
     @property
     def is_loaded(self) -> bool:
@@ -40,7 +42,8 @@ class BiRefNetBackgroundRemover:
                 return
             if not self.is_installed:
                 raise ModelNotInstalledError(
-                    "BiRefNet не найден. Выполните: python scripts/download_model.py"
+                    "BiRefNet не найден среди локальных весов. Выполните из корня проекта: "
+                    "python backend/scripts/download_model.py"
                 )
 
             try:

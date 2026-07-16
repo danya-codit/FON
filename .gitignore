@@ -12,6 +12,7 @@ htmlcov/
 
 # BiRefNet and Hugging Face caches
 backend/models/
+models/
 .cache/
 .hf-cache/
 huggingface/
