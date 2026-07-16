@@ -160,6 +160,78 @@ wsl --shutdown
 
 **Не хватает памяти.** Увеличьте память в Docker Desktop → Settings → Resources. Значение `BACKEND_MEMORY_LIMIT` в `.env` можно повысить, если Docker сообщает об out-of-memory.
 
+## Production backend для Yandex Serverless Containers
+
+Production-образ создаётся отдельно от локального Compose. Он включает локальную папку
+`models/BiRefNet` в `/app/models/BiRefNet`, включает `HF_HUB_OFFLINE=1` и
+`TRANSFORMERS_OFFLINE=1` и не требует bind-volume с моделью. В Git веса по-прежнему не
+попадают: они исключены через `.gitignore`, но разрешены только в build context production-образа.
+
+### Собрать и проверить production image локально
+
+Из корня проекта:
+
+```powershell
+.\scripts\build-production-backend.ps1
+.\scripts\run-production-backend-local.ps1 -Port 8080
+```
+
+Во втором окне PowerShell:
+
+```powershell
+.\scripts\test-production-backend.ps1 -Port 8080
+```
+
+Скрипт запуска передаёт `PORT=8080`, но volume не подключает. Если `PORT` не задан,
+образ слушает `8000`. Production Dockerfile использует один worker и healthcheck.
+
+Для сборки frontend под публичный URL backend передайте build args:
+
+```powershell
+docker build -f frontend\Dockerfile -t fon-frontend:production frontend `
+  --build-arg NEXT_PUBLIC_API_URL=https://<public-backend-url> `
+  --build-arg NEXT_PUBLIC_UPLOAD_MODE=storage `
+  --build-arg NEXT_PUBLIC_MAX_FILE_SIZE_MB=15
+```
+
+`NEXT_PUBLIC_API_URL` — browser-visible URL API; в production он не должен быть
+`localhost`. В локальном Compose по умолчанию используются `http://localhost:8000` и
+`NEXT_PUBLIC_UPLOAD_MODE=direct`, поэтому привычный локальный сценарий не меняется.
+
+### Поток Object Storage
+
+Для Serverless Containers прямой multipart endpoint остаётся локальным режимом. Production
+frontend при `NEXT_PUBLIC_UPLOAD_MODE=storage` использует следующий поток:
+
+1. `POST /api/uploads/presign` выдаёт одноразовую signed URL и ключ `uploads/...`.
+2. Браузер отправляет исходный файл напрямую по этой ссылке.
+3. `POST /api/remove-background/jobs` получает ключ, загружает файл из закрытого bucket,
+   обрабатывает его и сохраняет PNG в `results/...`.
+4. API возвращает signed URL результата, а `GET /api/remove-background/jobs/{id}` позволяет
+   посмотреть состояние синхронного задания в текущем процессе.
+
+Для разработки `STORAGE_BACKEND=mock` создаёт файловый mock в `backend/.storage/` и добавляет
+временные URL через API. Для Yandex Object Storage установите `STORAGE_BACKEND=s3` и задайте
+следующие переменные только в защищённых настройках revision, а не в Git:
+
+| Переменная | Назначение |
+| --- | --- |
+| `S3_ENDPOINT` | `https://storage.yandexcloud.net` |
+| `S3_BUCKET` | Закрытый bucket для `uploads/` и `results/` |
+| `S3_REGION` | Обычно `ru-central1` |
+| `S3_ACCESS_KEY_ID` | Статический ключ сервисного аккаунта |
+| `S3_SECRET_ACCESS_KEY` | Секрет статического ключа |
+| `PRESIGN_EXPIRES_SECONDS` | Время действия signed URLs, по умолчанию 900 |
+
+На bucket вручную нужно будет настроить CORS для публичного домена frontend (методы `PUT` и
+`GET`) и lifecycle policy, удаляющую `uploads/` и `results/` через заданный срок. В проекте не
+создаются bucket, ключи, lifecycle policy или иные платные ресурсы Yandex Cloud.
+
+При создании revision Yandex Serverless Containers укажите production image из Yandex Container
+Registry, `PORT` из runtime, достаточную память для CPU-инференса и service account с доступом
+к Container Registry. Если вместо весов в image используется mount bucket, сервисному аккаунту
+понадобится `storage.viewer`; для первого production запуска предпочтительнее образ с весами.
+
 ## Локальный запуск без Docker
 
 ## Системные требования
@@ -307,6 +379,10 @@ Backend читает следующие переменные:
 | `MAX_UPLOAD_SIZE_MB` | `15` | Максимальный размер файла |
 | `MAX_IMAGE_PIXELS` | `40000000` | Защита от изображений чрезмерного разрешения |
 | `ALLOWED_ORIGINS` | localhost и 127.0.0.1:3000 | Разрешённые CORS origins через запятую |
+| `STORAGE_BACKEND` | `mock` | `mock` для разработки или `s3` для Yandex Object Storage |
+| `STORAGE_MOCK_DIR` | `backend/.storage` | Локальная папка mock storage, исключена из Git |
+| `S3_*` | пусто | S3-совместимые параметры production bucket, не коммитятся |
+| `PRESIGN_EXPIRES_SECONDS` | `900` | Время действия signed URLs |
 
 Frontend:
 
@@ -314,6 +390,7 @@ Frontend:
 | --- | --- | --- |
 | `NEXT_PUBLIC_API_URL` | задаётся в `frontend/.env.local` | Browser-visible адрес FastAPI |
 | `NEXT_PUBLIC_MAX_FILE_SIZE_MB` | `15` | Клиентская проверка размера |
+| `NEXT_PUBLIC_UPLOAD_MODE` | `direct` | `direct` для local API или `storage` для production flow |
 
 Примеры находятся в `backend/.env.example` и `frontend/.env.local.example`. При изменении лимита задайте одинаковое значение на frontend и backend. Секреты и локальные `.env` исключены из Git.
 
@@ -361,6 +438,9 @@ pnpm build
 - `GET /api/health` — состояние API и локальной модели;
 - `GET /api/config` — публичные ограничения загрузки;
 - `POST /api/remove-background` — multipart-поле `file`, ответ `image/png`.
+- `POST /api/uploads/presign` — signed URL и ключ объекта для прямой загрузки;
+- `POST /api/remove-background/jobs` — обработка объекта из storage и signed URL PNG;
+- `GET /api/remove-background/jobs/{id}` — состояние синхронного задания в памяти процесса.
 
 Если модель не скачана, endpoint обработки возвращает HTTP 503 с командой установки. Неверный формат возвращает 415, повреждённое или слишком большое по разрешению изображение — 422, файл больше лимита — 413.
 
