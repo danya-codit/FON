@@ -7,6 +7,7 @@ const API_URL = (
   process.env.NEXT_PUBLIC_API_URL
   ?? (process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000" : "")
 ).replace(/\/$/, "");
+const UPLOAD_MODE = process.env.NEXT_PUBLIC_UPLOAD_MODE ?? "direct";
 const configuredMaxSize = Number(process.env.NEXT_PUBLIC_MAX_FILE_SIZE_MB ?? "15");
 const MAX_FILE_SIZE_MB = Number.isFinite(configuredMaxSize) ? configuredMaxSize : 15;
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -17,6 +18,19 @@ type SelectedImage = {
   url: string;
   width: number;
   height: number;
+};
+
+type PresignedUpload = {
+  objectKey: string;
+  uploadUrl: string;
+  uploadHeaders: Record<string, string>;
+};
+
+type BackgroundRemovalJob = {
+  id: string;
+  status: string;
+  resultUrl: string | null;
+  error: string | null;
 };
 
 export function BackgroundRemover() {
@@ -97,35 +111,77 @@ export function BackgroundRemover() {
     setError(null);
     setIsProcessing(true);
 
-    const body = new FormData();
-    body.append("file", selected.file);
-
     try {
-      const response = await fetch(`${API_URL}/api/remove-background`, {
-        method: "POST",
-        body,
-      });
-      if (!response.ok) {
-        throw new Error(await getApiError(response));
-      }
-      if (!response.headers.get("content-type")?.includes("image/png")) {
-        throw new Error("Сервер вернул неожиданный формат результата.");
+      if (!API_URL) {
+        throw new Error("Адрес production API не задан. Укажите NEXT_PUBLIC_API_URL при сборке.");
       }
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      objectUrls.current.add(url);
-      setResultUrl(url);
+      if (UPLOAD_MODE === "storage") {
+        setResultUrl(await processThroughObjectStorage(selected.file));
+      } else {
+        const body = new FormData();
+        body.append("file", selected.file);
+        const response = await fetch(`${API_URL}/api/remove-background`, {
+          method: "POST",
+          body,
+        });
+        if (!response.ok) {
+          throw new Error(await getApiError(response));
+        }
+        if (!response.headers.get("content-type")?.includes("image/png")) {
+          throw new Error("Сервер вернул неожиданный формат результата.");
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        objectUrls.current.add(url);
+        setResultUrl(url);
+      }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Не удалось обработать изображение.";
       if (cause instanceof TypeError) {
-        setError("Нет соединения с API. Убедитесь, что backend запущен на порту 8000.");
+        setError("Не удалось соединиться с API или object storage. Проверьте public URL и CORS.");
       } else {
         setError(message);
       }
     } finally {
       setIsProcessing(false);
     }
+  }
+
+  async function processThroughObjectStorage(file: File): Promise<string> {
+    const presignResponse = await fetch(`${API_URL}/api/uploads/presign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: file.name, contentType: file.type }),
+    });
+    if (!presignResponse.ok) {
+      throw new Error(await getApiError(presignResponse));
+    }
+    const presigned = (await presignResponse.json()) as PresignedUpload;
+
+    const uploadResponse = await fetch(presigned.uploadUrl, {
+      method: "PUT",
+      headers: presigned.uploadHeaders,
+      body: file,
+    });
+    if (!uploadResponse.ok) {
+      throw new Error("Не удалось загрузить исходное изображение в object storage.");
+    }
+
+    const jobResponse = await fetch(`${API_URL}/api/remove-background/jobs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ objectKey: presigned.objectKey }),
+    });
+    if (!jobResponse.ok) {
+      throw new Error(await getApiError(jobResponse));
+    }
+    const job = (await jobResponse.json()) as BackgroundRemovalJob;
+    if (job.status !== "completed" || !job.resultUrl) {
+      throw new Error(job.error || "Обработка изображения не завершилась.");
+    }
+    return job.resultUrl;
   }
 
   function downloadResult() {
