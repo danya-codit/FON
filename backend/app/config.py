@@ -24,6 +24,16 @@ class Settings:
     allowed_origins: tuple[str, ...] = _csv_env(
         "ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
     )
+    storage_backend: str = os.getenv("STORAGE_BACKEND", "mock").lower()
+    storage_mock_dir: Path = Path(
+        os.getenv("STORAGE_MOCK_DIR", str(BACKEND_DIR / ".storage"))
+    ).resolve()
+    s3_endpoint: str = os.getenv("S3_ENDPOINT", "")
+    s3_bucket: str = os.getenv("S3_BUCKET", "")
+    s3_region: str = os.getenv("S3_REGION", "ru-central1")
+    s3_access_key_id: str = os.getenv("S3_ACCESS_KEY_ID", "")
+    s3_secret_access_key: str = os.getenv("S3_SECRET_ACCESS_KEY", "")
+    presign_expires_seconds: int = int(os.getenv("PRESIGN_EXPIRES_SECONDS", "900"))
 
     @property
     def max_upload_bytes(self) -> int:

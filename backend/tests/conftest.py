@@ -6,7 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app.main import app, get_background_remover
+from app.jobs import InMemoryJobStore
+from app.main import app, get_background_remover, get_job_store, get_object_storage
+from app.storage import LocalMockObjectStorage
 
 
 class FakeBackgroundRemover:
@@ -20,8 +22,12 @@ class FakeBackgroundRemover:
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client(tmp_path) -> TestClient:
+    storage = LocalMockObjectStorage(tmp_path, 900)
+    job_store = InMemoryJobStore()
     app.dependency_overrides[get_background_remover] = lambda: FakeBackgroundRemover()
+    app.dependency_overrides[get_object_storage] = lambda: storage
+    app.dependency_overrides[get_job_store] = lambda: job_store
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

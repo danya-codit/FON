@@ -15,6 +15,7 @@ models
 .hf-cache
 .cache
 huggingface
+.storage
 .idea
 .vscode
 Dockerfile

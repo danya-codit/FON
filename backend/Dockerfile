@@ -16,6 +16,8 @@ RUN python -m pip install --upgrade pip \
     && python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision \
     && python -m pip install -r requirements.txt
 
+RUN mkdir -p /app/.storage && chown appuser:appgroup /app/.storage
+
 COPY --chown=appuser:appgroup app ./app
 
 USER appuser
