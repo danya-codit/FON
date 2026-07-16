@@ -15,9 +15,9 @@ RUN pnpm install --frozen-lockfile
 
 FROM base AS builder
 
-ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_URL=https://bbaile7sehnvd246r8ad.containers.yandexcloud.net
 ARG NEXT_PUBLIC_MAX_FILE_SIZE_MB=15
-ARG NEXT_PUBLIC_UPLOAD_MODE=direct
+ARG NEXT_PUBLIC_UPLOAD_MODE=storage
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_MAX_FILE_SIZE_MB=$NEXT_PUBLIC_MAX_FILE_SIZE_MB
 ENV NEXT_PUBLIC_UPLOAD_MODE=$NEXT_PUBLIC_UPLOAD_MODE
@@ -46,6 +46,6 @@ USER nextjs
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1
+    CMD wget -q -O /dev/null "http://127.0.0.1:${PORT:-3000}/" || exit 1
 
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "export PORT=${PORT:-3000}; export HOSTNAME=0.0.0.0; exec node server.js"]
