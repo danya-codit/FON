@@ -3,7 +3,10 @@
 import type { CSSProperties, ChangeEvent, DragEvent, KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL
+  ?? (process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000" : "")
+).replace(/\/$/, "");
 const configuredMaxSize = Number(process.env.NEXT_PUBLIC_MAX_FILE_SIZE_MB ?? "15");
 const MAX_FILE_SIZE_MB = Number.isFinite(configuredMaxSize) ? configuredMaxSize : 15;
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;

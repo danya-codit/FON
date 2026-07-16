@@ -1,0 +1,46 @@
+name: fon
+
+services:
+  backend:
+    image: fon-backend:local
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      BIREFNET_MODEL_DIR: /app/models/BiRefNet
+      BIREFNET_MODEL_ID: ${BIREFNET_MODEL_ID:-ZhengPeng7/BiRefNet}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-15}
+      MAX_IMAGE_PIXELS: ${MAX_IMAGE_PIXELS:-40000000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    volumes:
+      - type: bind
+        source: ./models
+        target: /app/models
+        read_only: true
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    init: true
+    stop_grace_period: 30s
+    mem_limit: ${BACKEND_MEMORY_LIMIT:-6g}
+
+  frontend:
+    image: fon-frontend:local
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_MAX_FILE_SIZE_MB: ${NEXT_PUBLIC_MAX_FILE_SIZE_MB:-15}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    init: true
+    stop_grace_period: 15s
+
+networks:
+  default:
+    name: fon-network
