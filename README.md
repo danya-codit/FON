@@ -2,7 +2,7 @@
 
 Локальное веб-приложение для удаления фона с фотографий. Интерфейс написан на Next.js и TypeScript, API — на FastAPI, сегментация выполняется моделью [BiRefNet](https://huggingface.co/ZhengPeng7/BiRefNet).
 
-После однократного скачивания весов обработка работает полностью локально: backend загружает модель только из `backend/models/BiRefNet` с параметром `local_files_only=True`. Фотографии не сохраняются на диск и не отправляются во внешние сервисы.
+После однократного скачивания весов обработка работает полностью локально: backend загружает модель только из `models/BiRefNet` с параметром `local_files_only=True`. Фотографии не сохраняются на диск и не отправляются во внешние сервисы.
 
 ## Возможности
 
@@ -26,16 +26,141 @@ FON/
 │   ├── scripts/download_model.py
 │   ├── tests/
 │   ├── requirements.txt
-│   └── requirements-dev.txt
+│   ├── requirements-dev.txt
+│   ├── Dockerfile
+│   └── .dockerignore
 ├── frontend/
 │   ├── app/                    # Next.js App Router
 │   ├── components/
-│   └── public/
+│   ├── public/
+│   ├── Dockerfile
+│   └── .dockerignore
+├── models/                      # Локальные веса BiRefNet, не попадают в Git
+├── compose.yaml
+├── .env.example
 ├── .gitignore
 └── README.md
 ```
 
-Docker и облачное развёртывание намеренно не добавлены: текущая версия предназначена для локального запуска.
+`models/` — единственное место для весов. Docker не включает их в образ: при запуске Compose папка монтируется в backend как read-only volume.
+
+## Запуск через Docker
+
+Docker — дополнительный способ запуска. Обычный запуск через Python и pnpm ниже продолжает работать.
+
+### Требования
+
+- Docker Desktop для Windows с Linux containers и WSL 2 backend;
+- минимум 8 ГБ RAM для Docker Desktop, рекомендуется 16 ГБ на компьютере;
+- около 8 ГБ свободного места для образов, зависимостей и модели;
+- доступ в интернет нужен для первой сборки образов и первого скачивания модели. В runtime контейнеры работают без обращения к Hugging Face.
+
+### 1. Открыть проект и проверить Docker
+
+```powershell
+cd C:\Users\Danya\Desktop\FON
+docker version
+docker compose version
+```
+
+### 2. Один раз скачать модель на хост
+
+Команда использует уже настроенное Python-окружение backend и кладёт веса только в `C:\Users\Danya\Desktop\FON\models\BiRefNet`:
+
+```powershell
+.\backend\.venv\Scripts\python.exe backend\scripts\download_model.py
+Test-Path .\models\BiRefNet\model.safetensors
+```
+
+Если второй вывод — `True`, веса готовы. Они не попадают в Git и не копируются в Docker image.
+
+### 3. Создать локальную конфигурацию
+
+```powershell
+Copy-Item .env.example .env
+```
+
+При необходимости измените порты, лимиты или CORS origins только в `.env`. Файл исключён из Git.
+
+### 4. Собрать и запустить
+
+```powershell
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+Откройте frontend: [http://localhost:3000](http://localhost:3000).
+
+Проверки backend:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/api/health
+Start-Process http://localhost:8000/docs
+```
+
+Frontend получает адрес API только из build-time переменной `NEXT_PUBLIC_API_URL`. Для Docker Compose по умолчанию это `http://localhost:8000`, потому что именно по этому адресу браузер пользователя видит опубликованный порт backend. В production-коде адрес не зашит: для другого хоста или порта измените `.env` и пересоберите frontend.
+
+### Логи, остановка и пересборка
+
+```powershell
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose down
+docker compose up --build -d
+```
+
+`docker compose down` удаляет контейнеры и сеть, но не трогает `models/` — это bind mount на вашем диске.
+
+### Проверка без интернета
+
+После первой сборки и скачивания весов отключите интернет и выполните:
+
+```powershell
+docker compose up -d --no-build
+Invoke-RestMethod http://localhost:8000/api/health
+```
+
+Compose устанавливает `HF_HUB_OFFLINE=1` и `TRANSFORMERS_OFFLINE=1`, а приложение использует `local_files_only=True`. Поэтому при отсутствии модели backend вернёт понятный HTTP 503 с командой скачивания, а не начнёт загрузку с Hugging Face.
+
+### Очистка Docker-кэша без удаления модели
+
+```powershell
+docker builder prune -f
+docker image prune -f
+```
+
+Не используйте `Remove-Item .\models` и не добавляйте `models/` в Docker volumes cleanup: это единственная локальная копия весов.
+
+### Ожидаемые размеры образов
+
+- `fon-frontend:local`: обычно менее 250 МБ благодаря standalone-сборке;
+- `fon-backend:local`: ориентировочно 1–2 ГБ; используется CPU-версия PyTorch без CUDA-библиотек.
+
+После сборки точные размеры покажет команда:
+
+```powershell
+docker images fon-frontend:local fon-backend:local
+```
+
+### Частые проблемы Docker Desktop и WSL
+
+**Docker Engine не запускается.** Откройте Docker Desktop и дождитесь статуса **Engine running**. Затем выполните:
+
+```powershell
+docker desktop status
+wsl --status
+wsl --update
+wsl --shutdown
+```
+
+После `wsl --shutdown` перезапустите Docker Desktop. В настройках Docker Desktop должен быть включён **Use the WSL 2 based engine**; также убедитесь, что виртуализация включена в BIOS/UEFI.
+
+**Backend пишет, что модель не найдена.** Проверьте путь `C:\Users\Danya\Desktop\FON\models\BiRefNet\model.safetensors` и снова выполните команду скачивания из шага 2.
+
+**Не хватает памяти.** Увеличьте память в Docker Desktop → Settings → Resources. Значение `BACKEND_MEMORY_LIMIT` в `.env` можно повысить, если Docker сообщает об out-of-memory.
+
+## Локальный запуск без Docker
 
 ## Системные требования
 
@@ -83,7 +208,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 python scripts\download_model.py
 ```
 
-Файлы попадут в `backend/models/BiRefNet`. Папка исключена из Git. Повторно скачивать модель при каждом запуске не нужно. Для принудительного обновления есть команда:
+Файлы попадут в `models/BiRefNet`. Папка исключена из Git. Повторно скачивать модель при каждом запуске не нужно. Для принудительного обновления есть команда:
 
 ```powershell
 python scripts\download_model.py --force
@@ -177,7 +302,7 @@ Backend читает следующие переменные:
 
 | Переменная | Значение по умолчанию | Назначение |
 | --- | --- | --- |
-| `BIREFNET_MODEL_DIR` | `backend/models/BiRefNet` | Локальная папка модели |
+| `BIREFNET_MODEL_DIR` | `models/BiRefNet` | Локальная папка модели |
 | `BIREFNET_MODEL_ID` | `ZhengPeng7/BiRefNet` | Репозиторий для команды скачивания |
 | `MAX_UPLOAD_SIZE_MB` | `15` | Максимальный размер файла |
 | `MAX_IMAGE_PIXELS` | `40000000` | Защита от изображений чрезмерного разрешения |
@@ -187,7 +312,7 @@ Frontend:
 
 | Переменная | Значение по умолчанию | Назначение |
 | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Адрес FastAPI |
+| `NEXT_PUBLIC_API_URL` | задаётся в `frontend/.env.local` | Browser-visible адрес FastAPI |
 | `NEXT_PUBLIC_MAX_FILE_SIZE_MB` | `15` | Клиентская проверка размера |
 
 Примеры находятся в `backend/.env.example` и `frontend/.env.local.example`. При изменении лимита задайте одинаковое значение на frontend и backend. Секреты и локальные `.env` исключены из Git.
@@ -241,7 +366,7 @@ pnpm build
 
 ## Частые проблемы
 
-**Frontend пишет, что нет соединения с API.** Убедитесь, что uvicorn работает на `127.0.0.1:8000`, а `NEXT_PUBLIC_API_URL` указывает на тот же адрес.
+**Frontend пишет, что нет соединения с API.** Убедитесь, что uvicorn работает на `127.0.0.1:8000`, а `NEXT_PUBLIC_API_URL` в `frontend/.env.local` указывает на тот же адрес. После изменения пересоберите или перезапустите Next.js.
 
 **API сообщает, что BiRefNet не найден.** Активируйте то же Python-окружение, из которого запускается uvicorn, перейдите в `backend` и выполните `python scripts\download_model.py`.
 
