@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1.7
+# Build from the project root so the ignored local BiRefNet directory is available
+# only to this production image: docker build -f backend/Dockerfile.production .
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV HF_HUB_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=1
+ENV BIREFNET_MODEL_DIR=/app/models/BiRefNet
+
+WORKDIR /app
+
+RUN groupadd --system --gid 1001 appgroup \
+    && useradd --system --uid 1001 --gid appgroup --create-home appuser
+
+COPY backend/requirements.txt ./requirements.txt
+RUN python -m pip install --upgrade pip \
+    && python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision \
+    && python -m pip install -r requirements.txt
+
+RUN mkdir -p /app/.storage && chown appuser:appgroup /app/.storage
+
+COPY --chown=appuser:appgroup backend/app ./app
+COPY --chown=appuser:appgroup models/BiRefNet ./models/BiRefNet
+
+USER appuser
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:' + __import__('os').environ.get('PORT', '8000') + '/api/health', timeout=3)" || exit 1
+
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

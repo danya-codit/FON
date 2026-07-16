@@ -14,6 +14,8 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-mock}
+      PRESIGN_EXPIRES_SECONDS: ${PRESIGN_EXPIRES_SECONDS:-900}
     volumes:
       - type: bind
         source: ./models
@@ -33,6 +35,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
         NEXT_PUBLIC_MAX_FILE_SIZE_MB: ${NEXT_PUBLIC_MAX_FILE_SIZE_MB:-15}
+        NEXT_PUBLIC_UPLOAD_MODE: ${NEXT_PUBLIC_UPLOAD_MODE:-direct}
     depends_on:
       backend:
         condition: service_healthy

@@ -16,6 +16,7 @@ models/
 .cache/
 .hf-cache/
 huggingface/
+.storage/
 
 # Frontend
 frontend/node_modules/
