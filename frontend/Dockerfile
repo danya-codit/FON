@@ -29,7 +29,6 @@ RUN pnpm build
 FROM node:22-alpine AS runner
 
 ENV NODE_ENV=production
-ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 RUN addgroup --system --gid 1001 nodejs \
